@@ -29,11 +29,15 @@ Los datos se envían a la plataforma en la nube **[Blynk](https://blynk.io/)** p
 
 ---
 
-## Esquema de Conexión
+## Esquemas
 
-_A continuación se muestra el diagrama de conexiones físicas del proyecto:_
+_A continuación se muestra el diagrama de conexiones físicas y de funcionamiento del proyecto_:_
 
 ![Esquema de conexión](./schema/prototype_bb.png)
+
+_Esquema de funcionamiento:_
+
+![Esquema de funcionamiento](./schema/diagram.png)
 
 ---
 
