@@ -26,18 +26,19 @@ WidgetTerminal terminal(V3); // Terminal de Blynk en el pin V3
 
 // Variables globales
 float temperature = 25.0;
-float humidity = 0.0;
-float tdsValue = 0.0;
-float ecValue = 0.0;
-uint16_t TVOC = 0;
-uint16_t eCO2 = 0;
-uint32_t absHumidity = 0;
+float humidity    = 0.0;
+float tdsValue    = 0.0;
+float ecValue     = 0.0;
+uint16_t TVOC     = 0;
+uint16_t eCO2     = 0;
+uint32_t absHumidityQ16 = 0;  // Humedad absoluta en formato Q16.16
+uint32_t absH_mgm3    = 0;  // Humedad absoluta en mg/m³
 
 // Constantes
-const float VREF = 3.28;
-const int ADC_RES = 1024;
-const float TDS_FACTOR = 0.5;
-const float kValue = 1.0;
+const float VREF      = 3.28;
+const int   ADC_RES   = 1024;
+const float TDS_FACTOR= 0.5;
+const float kValue    = 1.0;
 
 // WiFi
 char ssid[] = "WEALTH 2.4G Y 5G";
@@ -45,23 +46,22 @@ char pass[] = "Nomelase**";
 
 // ---------------- FUNCIONES ----------------
 
-uint32_t getAbsoluteHumidity(float temperature, float humidity) {
-  const float absH = 216.7f * ((humidity / 100.0f) * 6.112f *
+// Calcula humedad absoluta en mg/m³
+uint32_t getAbsoluteHumidity_mgm3(float temperature, float humidity) {
+  float absH = 216.7f * ((humidity / 100.0f) * 6.112f *
     exp((17.62f * temperature) / (243.12f + temperature)) /
     (273.15f + temperature));
-  return static_cast<uint32_t>(1000.0f * absH);
+  return static_cast<uint32_t>(absH * 1000.0f); // Conversión a mg/m3
 }
 
-// Función para conectar a WiFi y manejar reintentos
+// Conexión WiFi con reintentos
 void connectToWiFi() {
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
-
   int wifiRetries = 0;
   while (WiFi.status() != WL_CONNECTED && wifiRetries < 20) {
     delay(500);
     wifiRetries++;
   }
-
   if (WiFi.status() != WL_CONNECTED) {
     terminal.println("Error de conexión WiFi. Reiniciando en 2 minutos...");
     terminal.flush();
@@ -70,27 +70,36 @@ void connectToWiFi() {
   terminal.println("Dispositivo conectado a WiFi...");
 }
 
+// Lee DHT11 y actualiza compensación del SGP30
 void readDHTSensor() {
-  temperature = dht.readTemperature();
-  humidity    = dht.readHumidity();
-  if (!isnan(temperature) && !isnan(humidity)) {
-    absHumidity = getAbsoluteHumidity(temperature, humidity);
-    sgp.setHumidity(absHumidity);
+  float temp = dht.readTemperature();
+  float hum  = dht.readHumidity();
+  if (!isnan(temp) && !isnan(hum)) {
+    temperature = temp;
+    humidity    = hum;
+
+    absH_mgm3 = getAbsoluteHumidity_mgm3(temperature, humidity);
+    terminal.print("Humedad abs: ");
+    terminal.print(absH_mgm3 / 1000.0f, 2);
+    terminal.println(" g/m3");
+
+    absHumidityQ16 = absH_mgm3 * 65536ul;
+    sgp.setHumidity(absHumidityQ16);
   } else {
     terminal.println("Error al leer del sensor DHT");
   }
 }
 
+// Promedia lecturas del SGP30 con espera no bloqueante
 void getAverageSGP30(uint16_t &avgECO2, uint16_t &avgTVOC, int numReadings = 5) {
   uint32_t sumECO2 = 0, sumTVOC = 0;
-  int validReadings = 0;
-  int readingsDone = 0;
+  int validReadings = 0, readingsDone = 0;
   unsigned long lastMillis = millis();
 
   while (readingsDone < numReadings) {
-    if (millis() - lastMillis >= 500) {        // cada 500 ms
+    if (millis() - lastMillis >= 500) {
       lastMillis = millis();
-      readDHTSensor();                         // Refrescar compensación
+      readDHTSensor();  // Refrescar compensación
       if (sgp.IAQmeasure()) {
         if (sgp.eCO2 > 400 && sgp.TVOC > 10) {
           sumECO2  += sgp.eCO2;
@@ -100,36 +109,29 @@ void getAverageSGP30(uint16_t &avgECO2, uint16_t &avgTVOC, int numReadings = 5) 
       }
       readingsDone++;
     }
-    // aquí podríamos hacer otras tareas sin bloquear
   }
 
-  if (validReadings > 0) {
-    avgECO2 = sumECO2 / validReadings;
-    avgTVOC = sumTVOC / validReadings;
-  } else {
-    avgECO2 = sgp.eCO2;
-    avgTVOC = sgp.TVOC;
-  }
+  avgECO2 = (validReadings > 0) ? sumECO2 / validReadings : sgp.eCO2;
+  avgTVOC = (validReadings > 0) ? sumTVOC / validReadings : sgp.TVOC;
 }
 
+// Lectura de TDS con espera no bloqueante
 void readTDS() {
   terminal.println("Sensor TDS tomando lecturas...");
-  int analogSum = 0;
-  int numReadings = 20;
-  int readingsDone = 0;
+  int analogSum = 0, readingsDone = 0;
   unsigned long lastMillis = millis();
 
-  while (readingsDone < numReadings) {
-    if (millis() - lastMillis >= 10) {        // cada 10 ms
+  while (readingsDone < 20) {
+    if (millis() - lastMillis >= 10) {
       lastMillis = millis();
-      analogSum  += analogRead(TdsSensorPin);
+      analogSum += analogRead(TdsSensorPin);
       readingsDone++;
     }
-    // otras tareas...
   }
 
-  float avgAnalog = analogSum / float(numReadings);
+  float avgAnalog = analogSum / 20.0f;
   float voltage   = avgAnalog * (VREF / ADC_RES);
+
   ecValue = (133.42 * voltage * voltage * voltage
            - 255.86 * voltage * voltage
            + 857.39 * voltage) * kValue;
@@ -140,7 +142,6 @@ void readTDS() {
   terminal.print("EC: "); terminal.print(compEC, 2);
   terminal.print(" µS/cm | TDS: "); terminal.print(tdsValue, 0); terminal.println(" ppm");
 
-  // Clasificación de la calidad del agua
   terminal.print("Calidad del Agua: ");
   if (tdsValue < 300)       terminal.println("EXCELENTE");
   else if (tdsValue < 600)  terminal.println("BUENA");
@@ -149,50 +150,61 @@ void readTDS() {
   else                      terminal.println("INACEPTABLE");
 }
 
+// Inicializa y calibra SGP30
 void initializeSGP30() {
   if (!sgp.begin()) {
     terminal.println("Sensor SGP30 no detectado :(");
     return;
   }
-  terminal.println("Sensor SGP30 precalentando. Esperando condiciones válidas...");
+  terminal.println("Sensor SGP30 precalentando...");
 
-  bool readyToMeasure   = false;
-  unsigned long start   = millis();
+  bool readyToMeasure = false;
+  unsigned long start = millis();
+  const unsigned long maxWarm = 30000; // 30 segundos
 
-  while (!readyToMeasure && millis() - start < 60000) {
+  while (!readyToMeasure && millis() - start < maxWarm) {
     if (sgp.IAQmeasure() && sgp.eCO2 > 400 && sgp.TVOC > 10) {
       readyToMeasure = true;
-      eCO2           = sgp.eCO2;
-      TVOC           = sgp.TVOC;
+      eCO2 = sgp.eCO2;
+      TVOC = sgp.TVOC;
+      break;
     }
-    delay(1000);
+    static unsigned long lastDot = 0;
+    if (millis() - lastDot >= 1000) {
+      lastDot = millis();
+      terminal.print('.');
+      terminal.flush();
+      #ifdef BLYNK_CONNECTED
+      Blynk.run();
+      #endif
+    }
   }
 
   if (readyToMeasure) {
+    terminal.println("");
+    terminal.println(" ► SGP30 listo para medir.");
     readDHTSensor();
     getAverageSGP30(eCO2, TVOC);
-    terminal.println("SGP30 listo para medir.");
   } else {
-    terminal.println("SGP30 no alcanzó condiciones válidas. Usando última lectura.");
+    terminal.println(" ► Timeout. Usando última lectura.");
     sgp.IAQmeasure();
     eCO2 = sgp.eCO2;
     TVOC = sgp.TVOC;
   }
 
-  // Muestra los valores medidos al final de la inicialización
   terminal.print("eCO2: "); terminal.print(eCO2);
   terminal.print(" ppm | TVOC: "); terminal.print(TVOC);
   terminal.println(" ppb");
 
-  // Clasificación de la calidad del aire
   terminal.print("Calidad del Aire: ");
-  if (eCO2 < 600)      terminal.println("EXCELENTE");
+  if (eCO2 < 600)       terminal.println("EXCELENTE");
   else if (eCO2 < 800)  terminal.println("BUENO");
   else if (eCO2 < 1000) terminal.println("REGULAR");
   else if (eCO2 < 1500) terminal.println("POBRE");
   else                  terminal.println("INACEPTABLE");
 }
 
+// Envío de datos a Blynk
 void sendDataToBlynk() {
   Blynk.virtualWrite(V0, temperature);
   Blynk.virtualWrite(V1, humidity);
@@ -200,7 +212,7 @@ void sendDataToBlynk() {
   Blynk.virtualWrite(V4, ecValue);
   Blynk.virtualWrite(V5, TVOC);
   Blynk.virtualWrite(V6, eCO2);
-  Blynk.virtualWrite(V7, absHumidity);
+  Blynk.virtualWrite(V7, absH_mgm3/ 1000.0f);
 }
 
 // ---------------- SETUP ----------------
@@ -209,24 +221,24 @@ void setup() {
   Serial.begin(9600);
   dht.begin();
 
-  connectToWiFi();       // Maneja conexión WiFi y reintentos
+  connectToWiFi();       // Conecta WiFi
+  initializeSGP30();     // Precalienta y calibra SGP30
+  readDHTSensor();       // Primera lectura DHT y compensación
+  readTDS();             // Lectura TDS
 
-  initializeSGP30();     // Lectura, compensación y promedio SGP30
-  readDHTSensor();       // Lectura inicial DHT
-  readTDS();             // Lectura, compensación y promedio TDS
+  sendDataToBlynk();     // Envía datos a la nube
 
-  sendDataToBlynk();     // Envía todas las lecturas a Blynk
-
-  terminal.println("Entrando en deepSleep 2 min...");
+  terminal.println("Entrando en deepSleep 1 min...");
   terminal.flush();
 
-  // Espera no bloqueante de 2 segundos
-  unsigned long waitStart = millis();
-  while (millis() - waitStart < 2000) {
-    delay(100); // Espera 100 milisegundos para evitar bucle infinito
-  }
+  // Damos un pequeño margen para Blynk.run() y flush
+  #ifdef BLYNK_CONNECTED
+  Blynk.run();
+  #endif
+  delay(500);  // breve espera para que todo se envie
 
-  ESP.deepSleep(120e6);
+  // IMPORTANTE: para que deepSleep funcione en NodeMCU, une D0 a RST
+  ESP.deepSleep(60e6);
 }
 
 void loop() {
