@@ -31,25 +31,13 @@ Los datos se envían a la plataforma en la nube **[Blynk](https://blynk.io/)** p
 
 ## Esquemas
 
-_A continuación se muestra el diagrama de conexiones físicas y de funcionamiento del proyecto_:_
+_A continuación se muestra el diagrama de conexiones físicas y de funcionamiento del proyecto:_
 
 ![Esquema de conexión](./schema/prototype_bb.png)
 
 _Esquema de funcionamiento:_
 
 ![Esquema de funcionamiento](./schema/diagram.png)
-
----
-
-## Librerías Arduino Requeridas
-
-Asegúrate de instalar las siguientes librerías en el IDE de Arduino:
-
-- `GravityTDS-master`
-- `DHT11`
-- `Adafruit_SGP30`  
-- `Adafruit_Sensor`
-- `Wire` (generalmente incluida por defecto)
 
 ---
 
@@ -108,7 +96,7 @@ Utilizamos **[Blynk](https://blynk.io/)** como plataforma IoT para visualizar lo
 - Enviar los datos también a una base de datos o Google Sheets.
 - Agregar una pantalla OLED local para mostrar valores en sitio.
 - Implementar alertas automáticas por condiciones críticas.
-- Usar un **panel solar** junto con la **batería recargable** para operación autónoma.
+- Usar un **panel solar** junto con la batería recargable para operación autónoma.
 
 ---
 

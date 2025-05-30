@@ -57,18 +57,29 @@ uint32_t getAbsoluteHumidity_mgm3(float temperature, float humidity) {
 
 // Conexión WiFi con reintentos
 void connectToWiFi() {
+  Serial.println("Intentando conectar a WiFi...");
+  Serial.print("SSID: "); Serial.println(ssid);
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
   int wifiRetries = 0;
   while (WiFi.status() != WL_CONNECTED && wifiRetries < 20) {
+    Serial.print(".");
     delay(500);
     wifiRetries++;
   }
+
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nError de conexión WiFi. Reiniciando en 2 minutos...");
     terminal.println("Error de conexión WiFi. Reiniciando en 2 minutos...");
     terminal.flush();
-    ESP.deepSleep(120e6);
+    ESP.deepSleep(120e6);  // 2 minutos
+  } else {
+    Serial.println("\nConectado a WiFi.");
+    Serial.print("Dirección IP: "); Serial.println(WiFi.localIP());
+
+    terminal.println("Dispositivo conectado a WiFi...");
+    terminal.print("IP: "); terminal.println(WiFi.localIP());
   }
-  terminal.println("Dispositivo conectado a WiFi...");
 }
 
 // Lee DHT11 y actualiza compensación del SGP30
