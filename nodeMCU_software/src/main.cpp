@@ -34,6 +34,8 @@ uint16_t eCO2     = 0;
 uint32_t absHumidityQ16 = 0;  // Humedad absoluta en formato Q16.16 para compensación SGP30
 uint32_t absH_mgm3    = 0;    // Humedad absoluta en mg/m³ (para cálculo)
 float    absH_gm3     = 0.0f; // Humedad absoluta en g/m³ (para visualización y envío)
+String airQualityStr;
+String waterQualityStr;
 
 // Constantes
 const float VREF      = 3.28;
@@ -69,12 +71,12 @@ void connectToWiFi() {
   }
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nError de conexión WiFi. Reiniciando en 2 minutos...");
-    terminal.println("Error de conexión WiFi. Reiniciando en 2 minutos...");
+    Serial.println("\nError de conexión WiFi. Reiniciando en 30s...");
+    terminal.println("Error de conexión WiFi. Reiniciando en 30s...");
     terminal.flush();
-    ESP.deepSleep(120e6);  // 2 minutos
+    ESP.deepSleep(30e6);  // 30s
   } else {
-    Serial.println("\nConectado a WiFi.");
+    Serial.println("\nConectado al WiFi exitosamente...");
     Serial.print("Dirección IP: "); Serial.println(WiFi.localIP());
 
     terminal.println("Dispositivo conectado a WiFi...");
@@ -171,11 +173,26 @@ void readTDS() {
 
   // Clasificación de la calidad del agua
   terminal.print("Calidad del Agua: ");
-  if (tdsValue < 300)       terminal.println("EXCELENTE");
-  else if (tdsValue < 600)  terminal.println("BUENA");
-  else if (tdsValue < 900)  terminal.println("REGULAR");
-  else if (tdsValue < 1200) terminal.println("POBRE");
-  else                      terminal.println("INACEPTABLE");
+  if (tdsValue < 300) {
+    terminal.println("EXCELENTE");
+    waterQualityStr = "EXCELENTE";
+  }
+  else if (tdsValue < 600) {
+    terminal.println("BUENA");
+    waterQualityStr = "BUENA";
+  }
+  else if (tdsValue < 900) {
+    terminal.println("REGULAR");
+    waterQualityStr = "REGULAR";
+  }
+  else if (tdsValue < 1200) {
+    terminal.println("POBRE");
+    waterQualityStr = "POBRE";
+  }
+  else {
+    terminal.println("INACEPTABLE");
+    waterQualityStr = "INACEPTABLE";
+  }
 }
 
 // Inicializa y calibra SGP30
@@ -225,11 +242,32 @@ void initializeSGP30() {
   terminal.print(" ppm | TVOC: "); terminal.print(TVOC);
   terminal.println(" ppb");
   terminal.print("Calidad del Aire: ");
-  if (eCO2 < 600)       terminal.println("EXCELENTE");
-  else if (eCO2 < 800)  terminal.println("BUENO");
-  else if (eCO2 < 1000) terminal.println("REGULAR");
-  else if (eCO2 < 1500) terminal.println("POBRE");
-  else                  terminal.println("INACEPTABLE");
+  if (eCO2 < 600) {
+    terminal.println("EXCELENTE");  
+    airQualityStr = "EXCELENTE";
+  }
+  else if (eCO2 < 800) {
+    terminal.println("BUENO");
+    airQualityStr = "BUENO";
+  }
+  else if (eCO2 < 1000) {
+    terminal.println("REGULAR");
+    airQualityStr = "REGULAR";
+  }
+  else if (eCO2 < 1500) {
+    terminal.println("POBRE");
+    airQualityStr = "POBRE";
+  } else {
+    terminal.println("INACEPTABLE");
+    airQualityStr = "INACEPTABLE";
+  }
+
+  String airQualityStr;
+  if (eCO2 < 600)       airQualityStr = "EXCELENTE";
+  else if (eCO2 < 800)  airQualityStr = "BUENO";
+  else if (eCO2 < 1000) airQualityStr = "REGULAR";
+  else if (eCO2 < 1500) airQualityStr = "POBRE";
+  else                  airQualityStr = "INACEPTABLE";
 }
 
 // Envío de datos a Blynk
@@ -241,6 +279,8 @@ void sendDataToBlynk() {
   Blynk.virtualWrite(V5, TVOC);         // TVOC (ppb)
   Blynk.virtualWrite(V6, eCO2);         // eCO₂ (ppm)
   Blynk.virtualWrite(V7, absH_gm3);     // Humedad absoluta (g/m³)
+  Blynk.virtualWrite(V8, airQualityStr);
+  Blynk.virtualWrite(V9, waterQualityStr);
 }
 
 // ---------------- SETUP ----------------
