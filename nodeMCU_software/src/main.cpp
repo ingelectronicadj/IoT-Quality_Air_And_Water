@@ -59,7 +59,7 @@ uint32_t getAbsoluteHumidity_mgm3(float temperature, float humidity) {
 
 // Conexión WiFi con reintentos
 void connectToWiFi() {
-  Serial.println("Intentando conectar a WiFi...");
+  Serial.println("Intentando conectar a red WiFi de 2.4 GHz...");
   Serial.print("SSID: "); Serial.println(ssid);
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
@@ -71,10 +71,9 @@ void connectToWiFi() {
   }
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nError de conexión WiFi. Reiniciando en 30s...");
-    terminal.println("Error de conexión WiFi. Reiniciando en 30s...");
-    terminal.flush();
+    Serial.println("\nError de conexión WiFi. Verifique que la red sea de 2.4 GHz. Reintentando en 30 segundos...");
     ESP.deepSleep(30e6);  // 30s
+    // Alternativamente, podrías reiniciar el dispositivo
   } else {
     Serial.println("\nConectado al WiFi exitosamente...");
     Serial.print("Dirección IP: "); Serial.println(WiFi.localIP());
