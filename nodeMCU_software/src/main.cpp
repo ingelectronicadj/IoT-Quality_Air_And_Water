@@ -261,13 +261,6 @@ void initializeSGP30() {
     terminal.println("INACEPTABLE");
     airQualityStr = "INACEPTABLE";
   }
-
-  String airQualityStr;
-  if (eCO2 < 600)       airQualityStr = "EXCELENTE";
-  else if (eCO2 < 800)  airQualityStr = "BUENO";
-  else if (eCO2 < 1000) airQualityStr = "REGULAR";
-  else if (eCO2 < 1500) airQualityStr = "POBRE";
-  else                  airQualityStr = "INACEPTABLE";
 }
 
 // Envío de datos a Blynk
